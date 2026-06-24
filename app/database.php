@@ -1,0 +1,176 @@
+<?php
+
+declare(strict_types=1);
+
+function db(): PDO
+{
+    static $pdo = null;
+
+    if ($pdo instanceof PDO) {
+        return $pdo;
+    }
+
+    if (!is_dir(DATA_PATH)) {
+        mkdir(DATA_PATH, 0775, true);
+    }
+
+    $pdo = new PDO('sqlite:' . DATA_PATH . DIRECTORY_SEPARATOR . 'database.sqlite');
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $pdo->exec('PRAGMA foreign_keys = ON');
+
+    return $pdo;
+}
+
+function ensure_database(): void
+{
+    $pdo = db();
+    $exists = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")->fetch();
+
+    if ($exists) {
+        migrate_database($pdo);
+        return;
+    }
+
+    $schema = file_get_contents(ROOT_PATH . DIRECTORY_SEPARATOR . 'database' . DIRECTORY_SEPARATOR . 'schema.sql');
+    $pdo->exec($schema);
+
+    seed_database($pdo);
+    migrate_database($pdo);
+}
+
+function migrate_database(PDO $pdo): void
+{
+    $pdo->exec('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)');
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS services (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            price REAL NOT NULL DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )'
+    );
+
+    $columns = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+    $additions = [
+        'specialty' => 'TEXT',
+        'phone' => 'TEXT',
+        'bio' => 'TEXT',
+        'avatar' => 'TEXT',
+    ];
+
+    foreach ($additions as $column => $type) {
+        if (!in_array($column, $columns, true)) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN $column $type");
+        }
+    }
+
+    $appointmentColumns = array_column($pdo->query('PRAGMA table_info(appointments)')->fetchAll(), 'name');
+    $appointmentAdditions = [
+        'service_id' => 'INTEGER',
+        'customer_name' => 'TEXT',
+        'customer_phone' => 'TEXT',
+        'service_name' => 'TEXT',
+        'service_price' => 'REAL NOT NULL DEFAULT 0',
+    ];
+
+    foreach ($appointmentAdditions as $column => $type) {
+        if (!in_array($column, $appointmentColumns, true)) {
+            $pdo->exec("ALTER TABLE appointments ADD COLUMN $column $type");
+        }
+    }
+
+    $pdo->exec("UPDATE users SET name = 'Ayşe Demir', specialty = COALESCE(specialty, 'Cilt bakımı'), phone = COALESCE(phone, '+90 555 010 1001'), bio = COALESCE(bio, 'Cilt analizi, medikal bakım ve yenileyici uygulamalarda uzman.') WHERE email = 'ayse@salon.test'");
+    $pdo->exec("UPDATE users SET specialty = COALESCE(specialty, 'Kaş ve kirpik'), phone = COALESCE(phone, '+90 555 010 1002'), bio = COALESCE(bio, 'Kaş tasarımı, kirpik lifting ve doğal görünüm odaklı uygulamalar yapar.') WHERE email = 'zeynep@salon.test'");
+    $pdo->exec("UPDATE users SET name = 'Müşteri Demo' WHERE email = 'musteri@salon.test'");
+
+    foreach (default_settings() as $key => $value) {
+        $stmt = $pdo->prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (:key, :value)');
+        $stmt->execute(['key' => $key, 'value' => $value]);
+    }
+
+    seed_services($pdo);
+}
+
+function seed_database(PDO $pdo): void
+{
+    $password = password_hash('password', PASSWORD_DEFAULT);
+    $users = [
+        ['Admin', 'admin@salon.test', 'admin', $password],
+        ['Ayşe Demir', 'ayse@salon.test', 'specialist', $password],
+        ['Zeynep Kaya', 'zeynep@salon.test', 'specialist', $password],
+        ['Müşteri Demo', 'musteri@salon.test', 'customer', $password],
+    ];
+
+    $stmt = $pdo->prepare('INSERT INTO users (name, email, role, password_hash) VALUES (:name, :email, :role, :password_hash)');
+    foreach ($users as [$name, $email, $role, $hash]) {
+        $stmt->execute([
+            'name' => $name,
+            'email' => $email,
+            'role' => $role,
+            'password_hash' => $hash,
+        ]);
+    }
+
+    $pdo->exec("UPDATE users SET specialty = 'Cilt bakımı', phone = '+90 555 010 1001', bio = 'Cilt analizi, medikal bakım ve yenileyici uygulamalarda uzman.' WHERE email = 'ayse@salon.test'");
+    $pdo->exec("UPDATE users SET specialty = 'Kaş ve kirpik', phone = '+90 555 010 1002', bio = 'Kaş tasarımı, kirpik lifting ve doğal görünüm odaklı uygulamalar yapar.' WHERE email = 'zeynep@salon.test'");
+
+    $specialists = $pdo->query("SELECT id FROM users WHERE role = 'specialist'")->fetchAll();
+    $schedule = $pdo->prepare('INSERT INTO working_hours (specialist_id, weekday, start_time, end_time) VALUES (:specialist_id, :weekday, :start_time, :end_time)');
+
+    foreach ($specialists as $specialist) {
+        for ($day = 1; $day <= 5; $day++) {
+            $schedule->execute([
+                'specialist_id' => $specialist['id'],
+                'weekday' => $day,
+                'start_time' => '09:00',
+                'end_time' => '18:00',
+            ]);
+        }
+    }
+}
+
+function seed_services(PDO $pdo): void
+{
+    $exists = (int) $pdo->query('SELECT COUNT(*) FROM services')->fetchColumn();
+    if ($exists > 0) {
+        return;
+    }
+
+    $services = [
+        ['Cilt bakımı', 'Klasik cilt temizliği ve bakım uygulaması', 1200],
+        ['Kaş tasarımı', 'Kaş şekillendirme ve tasarım işlemi', 450],
+        ['Kirpik lifting', 'Kirpik lifting ve bakım işlemi', 900],
+    ];
+
+    $stmt = $pdo->prepare('INSERT INTO services (name, description, price) VALUES (:name, :description, :price)');
+    foreach ($services as [$name, $description, $price]) {
+        $stmt->execute([
+            'name' => $name,
+            'description' => $description,
+            'price' => $price,
+        ]);
+    }
+}
+
+function default_settings(): array
+{
+    return [
+        'brand_name' => 'Randevu',
+        'brand_subtitle' => 'Salon paneli',
+        'brand_logo' => '',
+        'favicon' => '',
+        'auth_background' => '/assets/images/auth-hero.jpg',
+        'auth_eyebrow' => 'Güzellik salonu randevu sistemi',
+        'auth_title' => 'Bakım deneyimini daha sakin ve düzenli planlayın.',
+        'auth_body' => 'Uzman mesaileri, blok saatler ve müşteri randevuları modern salon akışına uygun tek panelde birleşir.',
+    ];
+}
+
+function cleanup_cancelled_appointments(): void
+{
+    $stmt = db()->prepare("DELETE FROM appointments WHERE status = 'cancelled' AND date(slot_start) < :today");
+    $stmt->execute(['today' => date('Y-m-d')]);
+}

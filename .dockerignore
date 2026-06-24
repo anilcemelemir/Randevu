@@ -1,0 +1,6 @@
+.git
+.github
+data/*.sqlite
+data/*.sqlite-*
+.env
+README.md

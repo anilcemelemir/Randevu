@@ -1,0 +1,51 @@
+name: Deploy to Cenuta
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: cenuta-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate PHP files
+        run: |
+          find app public -name "*.php" -print0 | xargs -0 -n1 php -l
+
+      - name: Prepare shared-hosting artifact
+        run: |
+          mkdir -p build
+          rsync -av \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="Dockerfile" \
+            --exclude="docker-compose.yml" \
+            --exclude="scripts" \
+            --exclude="data/*.sqlite" \
+            --exclude="data/*.sqlite-*" \
+            ./ build/
+
+      - name: Deploy by FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.CENUTA_FTP_SERVER }}
+          username: ${{ secrets.CENUTA_FTP_USERNAME }}
+          password: ${{ secrets.CENUTA_FTP_PASSWORD }}
+          local-dir: ./build/
+          server-dir: ${{ secrets.CENUTA_FTP_SERVER_DIR }}
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/data/*.sqlite
+            **/data/*.sqlite-*

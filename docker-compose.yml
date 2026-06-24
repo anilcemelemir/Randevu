@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - .:/var/www/html
+      - randevu_data:/var/www/html/data
+    environment:
+      APACHE_DOCUMENT_ROOT: /var/www/html/public
+
+volumes:
+  randevu_data:
+

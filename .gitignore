@@ -1,0 +1,6 @@
+/data/*.sqlite
+/data/*.sqlite-*
+/.env
+/public/uploads/*
+!/public/uploads/.gitkeep
+/public/assets/images/auth-hero.png
