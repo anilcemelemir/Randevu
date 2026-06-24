@@ -18,14 +18,38 @@ $statusOptions = [
 <section class="panel focus-panel">
     <div class="filter-header">
         <h2><?= $user['role'] === 'admin' ? 'Randevular' : 'Bana ait randevular' ?></h2>
-        <nav class="status-tabs">
-            <?php foreach ($statusOptions as $value => $label): ?>
-                <a class="<?= $statusFilter === $value ? 'active' : '' ?>" href="/dashboard?status=<?= e($value) ?>"><?= e($label) ?></a>
-            <?php endforeach; ?>
-        </nav>
+        <div class="dashboard-filters">
+            <?php if ($user['role'] === 'admin'): ?>
+                <form class="specialist-filter" method="get" action="/dashboard">
+                    <input type="hidden" name="status" value="<?= e($statusFilter) ?>">
+                    <label>
+                        Uzman
+                        <select name="specialist_id" onchange="this.form.submit()">
+                            <option value="0">T&uuml;m uzmanlar</option>
+                            <?php foreach ($specialists as $specialist): ?>
+                                <option value="<?= (int) $specialist['id'] ?>" <?= (int) $specialistFilter === (int) $specialist['id'] ? 'selected' : '' ?>>
+                                    <?= e($specialist['name']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                </form>
+            <?php endif; ?>
+            <nav class="status-tabs">
+                <?php foreach ($statusOptions as $value => $label): ?>
+                    <?php
+                    $query = ['status' => $value];
+                    if (!empty($specialistFilter)) {
+                        $query['specialist_id'] = (int) $specialistFilter;
+                    }
+                    ?>
+                    <a class="<?= $statusFilter === $value ? 'active' : '' ?>" href="/dashboard?<?= e(http_build_query($query)) ?>"><?= e($label) ?></a>
+                <?php endforeach; ?>
+            </nav>
+        </div>
     </div>
 
-    <div class="table-wrap">
+    <div class="table-wrap appointments-table-wrap">
         <table>
             <thead>
                 <tr>
@@ -59,13 +83,16 @@ $statusOptions = [
                         <td><?= e($appointment['note'] ?: '-') ?></td>
                         <td><span class="badge"><?= e(status_label($appointment['status'])) ?></span></td>
                         <td>
-                            <?php if ($appointment['status'] === 'booked'): ?>
+                            <?php $canCancel = $appointment['status'] === 'completed' || ($appointment['status'] === 'booked' && strtotime($appointment['slot_start']) > time() + 3600); ?>
+                            <?php if (in_array($appointment['status'], ['booked', 'completed'], true)): ?>
                                 <div class="table-actions">
-                                    <form method="post" action="/appointments/approve">
-                                        <input type="hidden" name="id" value="<?= (int) $appointment['id'] ?>">
-                                        <button class="link-button" type="submit">Onayla</button>
-                                    </form>
-                                    <?php if (strtotime($appointment['slot_start']) > time() + 3600): ?>
+                                    <?php if ($appointment['status'] === 'booked'): ?>
+                                        <form method="post" action="/appointments/approve">
+                                            <input type="hidden" name="id" value="<?= (int) $appointment['id'] ?>">
+                                            <button class="link-button" type="submit">Onayla</button>
+                                        </form>
+                                    <?php endif; ?>
+                                    <?php if ($canCancel): ?>
                                         <form method="post" action="/appointments/cancel">
                                             <input type="hidden" name="id" value="<?= (int) $appointment['id'] ?>">
                                             <button class="link-button danger" type="submit">İptal</button>
@@ -86,8 +113,37 @@ $statusOptions = [
 
 <?php if ($user['role'] === 'specialist'): ?>
     <section class="panel">
-        <h2>Salon takvimi</h2>
-        <div class="table-wrap">
+        <div class="filter-header">
+            <h2>Salon takvimi</h2>
+            <div class="dashboard-filters">
+                <form class="specialist-filter" method="get" action="/dashboard">
+                    <input type="hidden" name="status" value="<?= e($statusFilter) ?>">
+                    <label>
+                        Uzman
+                        <select name="specialist_id" onchange="this.form.submit()">
+                            <option value="0">T&uuml;m uzmanlar</option>
+                            <?php foreach ($specialists as $specialist): ?>
+                                <option value="<?= (int) $specialist['id'] ?>" <?= (int) $specialistFilter === (int) $specialist['id'] ? 'selected' : '' ?>>
+                                    <?= e($specialist['name']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                </form>
+                <nav class="status-tabs">
+                    <?php foreach ($statusOptions as $value => $label): ?>
+                        <?php
+                        $query = ['status' => $value];
+                        if (!empty($specialistFilter)) {
+                            $query['specialist_id'] = (int) $specialistFilter;
+                        }
+                        ?>
+                        <a class="<?= $statusFilter === $value ? 'active' : '' ?>" href="/dashboard?<?= e(http_build_query($query)) ?>"><?= e($label) ?></a>
+                    <?php endforeach; ?>
+                </nav>
+            </div>
+        </div>
+        <div class="table-wrap appointments-table-wrap">
             <table>
                 <thead>
                     <tr>

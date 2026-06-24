@@ -125,16 +125,27 @@ function handle_dashboard(): void
         return;
     }
 
-    $statusFilter = $_GET['status'] ?? 'booked';
+    $statusFilter = $_GET['status'] ?? 'all';
     $allowedStatuses = ['all', 'booked', 'completed', 'cancelled'];
     if (!in_array($statusFilter, $allowedStatuses, true)) {
-        $statusFilter = 'booked';
+        $statusFilter = 'all';
+    }
+
+    $specialists = specialists();
+    $specialistIds = array_map(static fn (array $specialist): int => (int) $specialist['id'], $specialists);
+    $specialistFilter = (int) ($_GET['specialist_id'] ?? 0);
+    if ($specialistFilter > 0 && !in_array($specialistFilter, $specialistIds, true)) {
+        $specialistFilter = 0;
     }
 
     $conditions = [];
     $params = [];
     if ($user['role'] !== 'admin') {
         $conditions[] = "a.slot_start >= datetime('now', '-30 days')";
+    }
+    if ($specialistFilter > 0) {
+        $conditions[] = 'a.specialist_id = :specialist_id';
+        $params['specialist_id'] = $specialistFilter;
     }
     if ($statusFilter !== 'all') {
         $conditions[] = 'a.status = :status';
@@ -185,7 +196,8 @@ function handle_dashboard(): void
         'appointments' => $appointments,
         'myAppointments' => $myAppointments,
         'blocks' => $blocks,
-        'specialists' => specialists(),
+        'specialists' => $specialists,
+        'specialistFilter' => $specialistFilter,
         'user' => $user,
         'statusFilter' => $statusFilter,
     ]);
@@ -298,7 +310,12 @@ function handle_staff_cancel_appointment(): void
         redirect('/dashboard');
     }
 
-    if (strtotime($appointment['slot_start']) <= time() + 3600) {
+    if (!in_array($appointment['status'], ['booked', 'completed'], true)) {
+        flash('Sadece planlanan veya onaylanan randevular iptal edilebilir.', 'error');
+        redirect('/dashboard');
+    }
+
+    if ($appointment['status'] === 'booked' && strtotime($appointment['slot_start']) <= time() + 3600) {
         flash('Randevuya 1 saatten az kaldığı için iptal edilemez.', 'error');
         redirect('/dashboard');
     }
@@ -1098,7 +1115,7 @@ function available_slots(int $specialistId, string $date, int $duration = 1): ar
 
     $busyStmt = db()->prepare(
         "SELECT slot_start, slot_end FROM appointments
-         WHERE specialist_id = :specialist_id AND date(slot_start) = :date AND status = 'booked'
+         WHERE specialist_id = :specialist_id AND date(slot_start) = :date AND status IN ('booked', 'completed')
          UNION ALL
          SELECT slot_start, slot_end FROM blocked_slots
          WHERE specialist_id = :specialist_id AND date(slot_start) = :date"
