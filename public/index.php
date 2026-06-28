@@ -27,6 +27,7 @@ match ($path) {
     '/appointments/create' => handle_staff_create_appointment(),
     '/appointments/cancel' => handle_staff_cancel_appointment(),
     '/appointments/approve' => handle_appointment_approve(),
+    '/appointments/history' => handle_appointment_history(),
     '/specialists' => handle_specialists(),
     '/specialists/create' => handle_specialist_create(),
     '/services' => handle_services(),
@@ -138,11 +139,9 @@ function handle_dashboard(): void
         $specialistFilter = 0;
     }
 
-    $conditions = [];
-    $params = [];
-    if ($user['role'] !== 'admin') {
-        $conditions[] = "a.slot_start >= datetime('now', '-30 days')";
-    }
+    $visibleFrom = date('Y-m-d H:i:s', time() - (10 * 3600));
+    $conditions = ['a.slot_start >= :visible_from'];
+    $params = ['visible_from' => $visibleFrom];
     if ($specialistFilter > 0) {
         $conditions[] = 'a.specialist_id = :specialist_id';
         $params['specialist_id'] = $specialistFilter;
@@ -180,10 +179,14 @@ function handle_dashboard(): void
              LEFT JOIN users c ON c.id = a.customer_id
              JOIN users s ON s.id = a.specialist_id
              WHERE a.specialist_id = :specialist_id
+               AND a.slot_start >= :visible_from
                " . ($statusFilter !== 'all' ? 'AND a.status = :status' : '') . "
              ORDER BY a.slot_start ASC"
         );
-        $mineParams = ['specialist_id' => $user['id']];
+        $mineParams = [
+            'specialist_id' => $user['id'],
+            'visible_from' => $visibleFrom,
+        ];
         if ($statusFilter !== 'all') {
             $mineParams['status'] = $statusFilter;
         }
@@ -200,6 +203,87 @@ function handle_dashboard(): void
         'specialistFilter' => $specialistFilter,
         'user' => $user,
         'statusFilter' => $statusFilter,
+    ]);
+}
+
+function handle_appointment_history(): void
+{
+    Auth::requireRole(['admin', 'specialist']);
+
+    $statusFilter = $_GET['status'] ?? 'all';
+    $allowedStatuses = ['all', 'booked', 'completed', 'cancelled'];
+    if (!in_array($statusFilter, $allowedStatuses, true)) {
+        $statusFilter = 'all';
+    }
+
+    $specialists = specialists();
+    $specialistIds = array_map(static fn (array $specialist): int => (int) $specialist['id'], $specialists);
+    $specialistFilter = (int) ($_GET['specialist_id'] ?? 0);
+    if ($specialistFilter > 0 && !in_array($specialistFilter, $specialistIds, true)) {
+        $specialistFilter = 0;
+    }
+
+    $dateFrom = trim($_GET['date_from'] ?? '');
+    if ($dateFrom !== '' && strtotime($dateFrom) === false) {
+        $dateFrom = '';
+    }
+
+    $dateTo = trim($_GET['date_to'] ?? '');
+    if ($dateTo !== '' && strtotime($dateTo) === false) {
+        $dateTo = '';
+    }
+
+    $customerQuery = trim($_GET['customer'] ?? '');
+
+    $conditions = [];
+    $params = [];
+
+    if ($statusFilter !== 'all') {
+        $conditions[] = 'a.status = :status';
+        $params['status'] = $statusFilter;
+    }
+
+    if ($specialistFilter > 0) {
+        $conditions[] = 'a.specialist_id = :specialist_id';
+        $params['specialist_id'] = $specialistFilter;
+    }
+
+    if ($dateFrom !== '') {
+        $conditions[] = 'date(a.slot_start) >= :date_from';
+        $params['date_from'] = $dateFrom;
+    }
+
+    if ($dateTo !== '') {
+        $conditions[] = 'date(a.slot_start) <= :date_to';
+        $params['date_to'] = $dateTo;
+    }
+
+    if ($customerQuery !== '') {
+        $conditions[] = "(COALESCE(a.customer_name, c.name, '') LIKE :customer_query)";
+        $params['customer_query'] = '%' . $customerQuery . '%';
+    }
+
+    $where = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+    $stmt = db()->prepare(
+        "SELECT a.*, COALESCE(a.customer_name, c.name) AS customer_name, s.name AS specialist_name
+         FROM appointments a
+         LEFT JOIN users c ON c.id = a.customer_id
+         JOIN users s ON s.id = a.specialist_id
+         $where
+         ORDER BY a.slot_start DESC"
+    );
+    $stmt->execute($params);
+
+    view('appointments/history.php', [
+        'title' => 'Randevu Geçmişi',
+        'appointments' => $stmt->fetchAll(),
+        'specialists' => $specialists,
+        'statusFilter' => $statusFilter,
+        'specialistFilter' => $specialistFilter,
+        'dateFrom' => $dateFrom,
+        'dateTo' => $dateTo,
+        'customerQuery' => $customerQuery,
+        'user' => Auth::user(),
     ]);
 }
 

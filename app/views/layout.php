@@ -86,6 +86,7 @@
             <nav class="nav">
                 <a class="<?= route_is('/dashboard') ? 'active' : '' ?>" href="/dashboard">Takvim</a>
                 <?php if ($user && in_array($user['role'], ['admin', 'specialist'], true)): ?>
+                    <a class="<?= route_is('/appointments/history') ? 'active' : '' ?>" href="/appointments/history">Randevu ge&ccedil;mişi</a>
                     <a class="<?= route_is('/appointments/new') ? 'active' : '' ?>" href="/appointments/new">Randevu ekle</a>
                 <?php endif; ?>
                 <?php if ($user && in_array($user['role'], ['admin', 'specialist'], true)): ?>
