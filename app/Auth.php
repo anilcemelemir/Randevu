@@ -25,7 +25,7 @@ final class Auth
     public static function login(string $email, string $password): bool
     {
         $stmt = db()->prepare('SELECT * FROM users WHERE email = :email LIMIT 1');
-        $stmt->execute(['email' => strtolower(trim($email))]);
+        $stmt->execute(['email' => normalize_email($email)]);
         $user = $stmt->fetch();
 
         if (!$user || !password_verify($password, $user['password_hash'])) {

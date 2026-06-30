@@ -47,7 +47,7 @@
                 </label>
                 <label>
                     E-posta
-                    <input type="email" name="email" required>
+                    <input type="text" name="email" inputmode="email" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required>
                 </label>
                 <label>
                     Geçici şifre

@@ -23,6 +23,48 @@ function is_post(): bool
     return request_method() === 'POST';
 }
 
+function normalize_email(string $email): string
+{
+    $email = trim($email);
+    $email = str_replace(["\u{200B}", "\u{200C}", "\u{200D}", "\u{FEFF}"], '', $email);
+    $email = strtr($email, [
+        'İ' => 'i',
+        'I' => 'i',
+        'ı' => 'i',
+        'Ğ' => 'g',
+        'ğ' => 'g',
+        'Ü' => 'u',
+        'ü' => 'u',
+        'Ş' => 's',
+        'ş' => 's',
+        'Ö' => 'o',
+        'ö' => 'o',
+        'Ç' => 'c',
+        'ç' => 'c',
+    ]);
+    $email = strtolower($email);
+
+    if (!str_contains($email, '@')) {
+        return $email;
+    }
+
+    [$local, $domain] = explode('@', $email, 2);
+
+    if (preg_match('/^xn--ikikiznails-[a-z0-9-]+\.com$/', $domain)) {
+        $domain = 'ikikiznails.com';
+    }
+
+    return $local . '@' . $domain;
+}
+
+function is_valid_plain_email(string $email): bool
+{
+    return $email !== ''
+        && preg_match('/^[\x21-\x7E]+$/', $email)
+        && !str_contains($email, 'xn--')
+        && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
 function flash(?string $message = null, string $type = 'success'): ?array
 {
     if ($message !== null) {

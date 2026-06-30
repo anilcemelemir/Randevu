@@ -52,6 +52,16 @@ function migrate_database(PDO $pdo): void
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )'
     );
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS appointment_services (
+            appointment_id INTEGER NOT NULL,
+            service_id INTEGER NOT NULL,
+            service_name TEXT NOT NULL,
+            service_price REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (appointment_id, service_id),
+            FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+        )'
+    );
 
     $columns = array_column($pdo->query('PRAGMA table_info(users)')->fetchAll(), 'name');
     $additions = [
@@ -64,6 +74,22 @@ function migrate_database(PDO $pdo): void
     foreach ($additions as $column => $type) {
         if (!in_array($column, $columns, true)) {
             $pdo->exec("ALTER TABLE users ADD COLUMN $column $type");
+        }
+    }
+
+    $users = $pdo->query("SELECT id, email FROM users WHERE email LIKE '%@xn--ikikiznails-%.com'")->fetchAll();
+    foreach ($users as $user) {
+        $normalizedEmail = normalize_email($user['email']);
+        if ($normalizedEmail !== $user['email'] && is_valid_plain_email($normalizedEmail)) {
+            try {
+                $updateEmail = $pdo->prepare('UPDATE users SET email = :email WHERE id = :id');
+                $updateEmail->execute([
+                    'email' => $normalizedEmail,
+                    'id' => $user['id'],
+                ]);
+            } catch (PDOException) {
+                // Keep the existing address if another account already uses the normalized email.
+            }
         }
     }
 

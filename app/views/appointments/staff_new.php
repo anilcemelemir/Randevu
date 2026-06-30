@@ -13,7 +13,7 @@
                 <label>
                     Uzman
                     <select name="specialist_id" required>
-                        <option value="">Seçin</option>
+                        <option value="">Se&ccedil;in</option>
                         <?php foreach ($specialists as $specialist): ?>
                             <option value="<?= (int) $specialist['id'] ?>" <?= (int) $selectedSpecialist === (int) $specialist['id'] ? 'selected' : '' ?>>
                                 <?= e($specialist['name']) ?>
@@ -28,7 +28,7 @@
                     <input type="date" name="date" value="<?= e($selectedDate) ?>" min="<?= e(date('Y-m-d')) ?>" required>
                 </label>
                 <label>
-                    Süre
+                    S&uuml;re
                     <select name="duration" required>
                         <option value="1" <?= (int) $selectedDuration === 1 ? 'selected' : '' ?>>1 saat</option>
                         <option value="2" <?= (int) $selectedDuration === 2 ? 'selected' : '' ?>>2 saat</option>
@@ -36,7 +36,7 @@
                     </select>
                 </label>
             </div>
-            <button type="submit">Müsait saatleri göster</button>
+            <button type="submit">M&uuml;sait saatleri g&ouml;ster</button>
         </form>
     </div>
 
@@ -49,25 +49,26 @@
                     <input type="hidden" name="specialist_id" value="<?= (int) $selectedSpecialist ?>">
                 <?php endif; ?>
                 <label>
-                    Müşteri adı
+                    M&uuml;şteri adı
                     <input type="text" name="customer_name" required>
                 </label>
                 <label>
-                    Müşteri telefonu
+                    M&uuml;şteri telefonu
                     <input type="text" name="customer_phone" placeholder="+90 5xx xxx xx xx">
                 </label>
-                <label>
-                    İşlem
-                    <select name="service_id" required>
-                        <option value="">Seçin</option>
-                        <?php foreach ($services as $service): ?>
-                            <option value="<?= (int) $service['id'] ?>">
-                                <?= e($service['name']) ?> - <?= e(number_format((float) $service['price'], 2, ',', '.')) ?> TL
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <p class="helper-text">Seçtiğiniz süre için ardışık boş bloklar tek randevu olarak ayrılır.</p>
+                <fieldset class="service-options">
+                    <legend>İşlemler</legend>
+                    <?php foreach ($services as $service): ?>
+                        <label class="service-option">
+                            <input type="checkbox" name="service_ids[]" value="<?= (int) $service['id'] ?>">
+                            <span>
+                                <strong><?= e($service['name']) ?></strong>
+                                <small><?= e(number_format((float) $service['price'], 2, ',', '.')) ?> TL</small>
+                            </span>
+                        </label>
+                    <?php endforeach; ?>
+                </fieldset>
+                <p class="helper-text">Se&ccedil;tiğiniz s&uuml;re i&ccedil;in ardışık boş bloklar tek randevu olarak ayrılır.</p>
                 <div class="slot-grid">
                     <?php foreach ($slots as $slot): ?>
                         <label class="slot-option <?= !empty($slot['is_soon']) ? 'soon' : '' ?>">
@@ -75,22 +76,22 @@
                             <span>
                                 <?= e($slot['label']) ?>
                                 <?php if (!empty($slot['is_soon'])): ?>
-                                    <small>1 saat içinde olduğu için iptal edilemez</small>
+                                    <small>1 saat i&ccedil;inde olduğu i&ccedil;in iptal edilemez</small>
                                 <?php endif; ?>
                             </span>
                         </label>
                     <?php endforeach; ?>
                 </div>
                 <label>
-                    İşlem açıklaması
+                    İşlem a&ccedil;ıklaması
                     <textarea name="note" rows="4" placeholder="Yapılan/yapılacak işlem detayları"></textarea>
                 </label>
                 <button type="submit">Deftere ekle</button>
             </form>
         <?php elseif ($user['role'] === 'admin' && !$selectedSpecialist): ?>
             <div class="empty-state">
-                <strong>Önce uzman seçin.</strong>
-                <p>Admin olarak randevuyu hangi uzman adına ekleyeceğinizi seçmelisiniz.</p>
+                <strong>&Ouml;nce uzman se&ccedil;in.</strong>
+                <p>Admin olarak randevuyu hangi uzman adına ekleyeceğinizi se&ccedil;melisiniz.</p>
             </div>
         <?php elseif (!$services): ?>
             <div class="empty-state">
@@ -99,8 +100,8 @@
             </div>
         <?php else: ?>
             <div class="empty-state">
-                <strong>Bu tarih için uygun saat bulunamadı.</strong>
-                <p>Farklı bir tarih veya daha kısa süre seçerek tekrar deneyin.</p>
+                <strong>Bu tarih i&ccedil;in uygun saat bulunamadı.</strong>
+                <p>Farklı bir tarih veya daha kısa s&uuml;re se&ccedil;erek tekrar deneyin.</p>
             </div>
         <?php endif; ?>
     </div>

@@ -1,3 +1,5 @@
+<?php $user = Auth::user(); ?>
+
 <header class="page-header">
     <div>
         <span class="eyebrow">Uzman profili</span>
@@ -56,4 +58,51 @@
             <?php endif; ?>
         </div>
     </div>
+
+    <?php if ($user['role'] === 'admin'): ?>
+        <div class="panel">
+            <h2>Uzman bilgilerini d&uuml;zenle</h2>
+            <form class="stack-form" method="post" action="/specialists/update" enctype="multipart/form-data">
+                <input type="hidden" name="id" value="<?= (int) $specialist['id'] ?>">
+                <label>
+                    Ad soyad
+                    <input type="text" name="name" value="<?= e($specialist['name']) ?>" required>
+                </label>
+                <label>
+                    E-posta
+                    <input type="text" name="email" inputmode="email" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?= e($specialist['email']) ?>" required>
+                </label>
+                <label>
+                    Yeni şifre
+                    <input type="password" name="password" minlength="6" placeholder="Değişmeyecekse boş bırakın">
+                </label>
+                <label>
+                    Uzmanlık
+                    <input type="text" name="specialty" value="<?= e($specialist['specialty'] ?: '') ?>">
+                </label>
+                <label>
+                    Telefon
+                    <input type="text" name="phone" value="<?= e($specialist['phone'] ?: '') ?>">
+                </label>
+                <label>
+                    Profil notu
+                    <textarea name="bio" rows="4"><?= e($specialist['bio'] ?: '') ?></textarea>
+                </label>
+                <label>
+                    Profil fotoğrafı
+                    <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp">
+                </label>
+                <button type="submit">Bilgileri g&uuml;ncelle</button>
+            </form>
+        </div>
+
+        <div class="panel tone">
+            <h2>Uzmanı sil</h2>
+            <p>Bu işlem uzman hesabını, mesai kayıtlarını ve bu uzmana bağlı randevu kayıtlarını siler.</p>
+            <form method="post" action="/specialists/delete" onsubmit="return confirm('Bu uzman ve ilişkili kayıtlar silinsin mi?');">
+                <input type="hidden" name="id" value="<?= (int) $specialist['id'] ?>">
+                <button class="danger-button" type="submit">Uzmanı sil</button>
+            </form>
+        </div>
+    <?php endif; ?>
 </section>

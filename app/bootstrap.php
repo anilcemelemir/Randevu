@@ -15,4 +15,3 @@ require APP_PATH . DIRECTORY_SEPARATOR . 'database.php';
 require APP_PATH . DIRECTORY_SEPARATOR . 'Auth.php';
 
 ensure_database();
-cleanup_cancelled_appointments();

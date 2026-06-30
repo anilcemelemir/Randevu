@@ -1,0 +1,19 @@
+Options -Indexes
+
+RewriteEngine On
+
+RewriteRule ^(?:app|data|database|scripts|\.github)(?:/|$) - [F,L]
+RewriteRule ^(?:Dockerfile|docker-compose\.yml|README\.md|\.env|\.gitignore|\.dockerignore)$ - [F,L]
+
+RewriteRule ^$ public/index.php [L]
+
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^assets/(.*)$ public/assets/$1 [L]
+
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^uploads/(.*)$ public/uploads/$1 [L]
+
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ public/index.php [L]

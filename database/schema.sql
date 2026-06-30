@@ -50,6 +50,15 @@ CREATE TABLE appointments (
     FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE SET NULL
 );
 
+CREATE TABLE appointment_services (
+    appointment_id INTEGER NOT NULL,
+    service_id INTEGER NOT NULL,
+    service_name TEXT NOT NULL,
+    service_price REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (appointment_id, service_id),
+    FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+);
+
 CREATE TABLE services (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,

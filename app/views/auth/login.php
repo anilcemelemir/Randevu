@@ -18,7 +18,7 @@
 
         <label>
             E-posta
-            <input type="email" name="email" placeholder="ornek@salon.com" required autofocus>
+            <input type="text" name="email" inputmode="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="ornek@salon.com" required autofocus>
         </label>
 
         <label>

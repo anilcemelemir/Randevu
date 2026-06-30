@@ -54,6 +54,14 @@ button:hover,
     background: #732c3b;
 }
 
+.danger-button {
+    background: var(--error);
+}
+
+.danger-button:hover {
+    background: #8f1c14;
+}
+
 .button.secondary {
     border: 1px solid var(--line);
     color: var(--ink);
@@ -754,6 +762,56 @@ th {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+}
+
+.service-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    border: 0;
+    padding: 0;
+    margin: 0;
+}
+
+.service-options legend {
+    grid-column: 1 / -1;
+    margin-bottom: 2px;
+    color: #41454c;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.service-option {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.service-option:has(input:checked) {
+    border-color: var(--rose-dark);
+    background: #fbf0f2;
+}
+
+.service-option input {
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+}
+
+.service-option span {
+    display: grid;
+    gap: 2px;
+}
+
+.service-option small {
+    color: var(--muted);
+    font-weight: 800;
 }
 
 .focus-panel {
@@ -1549,6 +1607,10 @@ body.nav-open {
 
     table {
         min-width: 640px;
+    }
+
+    .service-options {
+        grid-template-columns: 1fr;
     }
 
     .focus-panel table,

@@ -30,6 +30,8 @@ match ($path) {
     '/appointments/history' => handle_appointment_history(),
     '/specialists' => handle_specialists(),
     '/specialists/create' => handle_specialist_create(),
+    '/specialists/update' => handle_specialist_update(),
+    '/specialists/delete' => handle_specialist_delete(),
     '/services' => handle_services(),
     '/services/create' => handle_service_create(),
     '/services/update' => handle_service_update(),
@@ -68,10 +70,10 @@ function handle_register(): void
 
     if (is_post()) {
         $name = trim($_POST['name'] ?? '');
-        $email = strtolower(trim($_POST['email'] ?? ''));
+        $email = normalize_email($_POST['email'] ?? '');
         $password = (string) ($_POST['password'] ?? '');
 
-        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 6) {
+        if ($name === '' || !is_valid_plain_email($email) || strlen($password) < 6) {
             $error = 'Lütfen geçerli bilgiler girin. Şifre en az 6 karakter olmalı.';
         } else {
             try {
@@ -327,19 +329,26 @@ function handle_staff_create_appointment(): void
     $slotStart = $_POST['slot_start'] ?? '';
     $customerName = trim($_POST['customer_name'] ?? '');
     $customerPhone = trim($_POST['customer_phone'] ?? '');
-    $serviceId = (int) ($_POST['service_id'] ?? 0);
+    $serviceIds = array_values(array_unique(array_filter(array_map('intval', (array) ($_POST['service_ids'] ?? [])))));
     $note = trim($_POST['note'] ?? '');
 
-    if ($customerName === '' || strtotime($slotStart) === false || $serviceId <= 0) {
+    if ($customerName === '' || strtotime($slotStart) === false || !$serviceIds) {
         flash('Müşteri, işlem ve saat bilgileri zorunludur.', 'error');
         redirect('/appointments/new');
     }
 
-    $service = service_by_id($serviceId);
-    if (!$service) {
+    $placeholders = implode(',', array_fill(0, count($serviceIds), '?'));
+    $servicesStmt = db()->prepare("SELECT * FROM services WHERE is_active = 1 AND id IN ($placeholders) ORDER BY name");
+    $servicesStmt->execute($serviceIds);
+    $selectedServices = $servicesStmt->fetchAll();
+    if (count($selectedServices) !== count($serviceIds)) {
         flash('Seçilen işlem bulunamadı.', 'error');
         redirect('/appointments/new');
     }
+
+    $serviceNames = array_map(static fn (array $service): string => $service['name'], $selectedServices);
+    $serviceTotal = array_sum(array_map(static fn (array $service): float => (float) $service['price'], $selectedServices));
+    $primaryServiceId = (int) $selectedServices[0]['id'];
 
     $date = date('Y-m-d', strtotime($slotStart));
     $validSlots = array_column(available_slots($specialistId, $date, $duration), 'start');
@@ -358,15 +367,29 @@ function handle_staff_create_appointment(): void
     $stmt->execute([
         'customer_id' => default_customer_id(),
         'specialist_id' => $specialistId,
-        'service_id' => $serviceId,
+        'service_id' => $primaryServiceId,
         'customer_name' => $customerName,
         'customer_phone' => $customerPhone,
-        'service_name' => $service['name'],
-        'service_price' => $service['price'],
+        'service_name' => implode(', ', $serviceNames),
+        'service_price' => $serviceTotal,
         'slot_start' => $slotStart,
         'slot_end' => date('Y-m-d H:i:s', strtotime($slotStart . ' +' . $duration . ' hour')),
         'note' => $note,
     ]);
+
+    $appointmentId = (int) db()->lastInsertId();
+    $serviceInsert = db()->prepare(
+        'INSERT INTO appointment_services (appointment_id, service_id, service_name, service_price)
+         VALUES (:appointment_id, :service_id, :service_name, :service_price)'
+    );
+    foreach ($selectedServices as $service) {
+        $serviceInsert->execute([
+            'appointment_id' => $appointmentId,
+            'service_id' => $service['id'],
+            'service_name' => $service['name'],
+            'service_price' => $service['price'],
+        ]);
+    }
 
     flash('Randevu deftere eklendi.');
     redirect('/dashboard');
@@ -673,14 +696,14 @@ function handle_specialist_create(): void
     }
 
     $name = trim($_POST['name'] ?? '');
-    $email = strtolower(trim($_POST['email'] ?? ''));
+    $email = normalize_email($_POST['email'] ?? '');
     $password = (string) ($_POST['password'] ?? '');
     $specialty = trim($_POST['specialty'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
     $bio = trim($_POST['bio'] ?? '');
     $avatar = uploaded_asset_path('avatar', '/specialists');
 
-    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 6) {
+    if ($name === '' || !is_valid_plain_email($email) || strlen($password) < 6) {
         flash('Uzman bilgileri eksik veya hatalı.', 'error');
         redirect('/specialists');
     }
@@ -716,6 +739,104 @@ function handle_specialist_create(): void
         flash('Bu e-posta adresi zaten kayıtlı.', 'error');
     }
 
+    redirect('/specialists');
+}
+
+function handle_specialist_update(): void
+{
+    Auth::requireRole(['admin']);
+
+    if (!is_post()) {
+        redirect('/specialists');
+    }
+
+    $id = (int) ($_POST['id'] ?? 0);
+    $stmt = db()->prepare("SELECT * FROM users WHERE id = :id AND role = 'specialist' LIMIT 1");
+    $stmt->execute(['id' => $id]);
+    $specialist = $stmt->fetch();
+
+    if (!$specialist) {
+        flash('Uzman bulunamadı.', 'error');
+        redirect('/specialists');
+    }
+
+    $name = trim($_POST['name'] ?? '');
+    $email = normalize_email($_POST['email'] ?? '');
+    $password = (string) ($_POST['password'] ?? '');
+    $specialty = trim($_POST['specialty'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $bio = trim($_POST['bio'] ?? '');
+    $avatar = uploaded_asset_path('avatar', '/specialists?id=' . $id) ?? $specialist['avatar'];
+
+    if ($name === '' || !is_valid_plain_email($email)) {
+        flash('Uzman bilgileri eksik veya hatalı.', 'error');
+        redirect('/specialists?id=' . $id);
+    }
+
+    if ($password !== '' && strlen($password) < 6) {
+        flash('Yeni şifre en az 6 karakter olmalı.', 'error');
+        redirect('/specialists?id=' . $id);
+    }
+
+    try {
+        $params = [
+            'id' => $id,
+            'name' => $name,
+            'email' => $email,
+            'specialty' => $specialty,
+            'phone' => $phone,
+            'bio' => $bio,
+            'avatar' => $avatar,
+        ];
+
+        $passwordSql = '';
+        if ($password !== '') {
+            $passwordSql = ', password_hash = :password_hash';
+            $params['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+        }
+
+        $update = db()->prepare(
+            "UPDATE users
+             SET name = :name,
+                 email = :email,
+                 specialty = :specialty,
+                 phone = :phone,
+                 bio = :bio,
+                 avatar = :avatar
+                 $passwordSql
+             WHERE id = :id AND role = 'specialist'"
+        );
+        $update->execute($params);
+
+        flash('Uzman bilgileri güncellendi.');
+    } catch (PDOException) {
+        flash('Bu e-posta adresi başka bir kullanıcıda kayıtlı.', 'error');
+    }
+
+    redirect('/specialists?id=' . $id);
+}
+
+function handle_specialist_delete(): void
+{
+    Auth::requireRole(['admin']);
+
+    if (!is_post()) {
+        redirect('/specialists');
+    }
+
+    $id = (int) ($_POST['id'] ?? 0);
+    $stmt = db()->prepare("SELECT id FROM users WHERE id = :id AND role = 'specialist' LIMIT 1");
+    $stmt->execute(['id' => $id]);
+
+    if (!$stmt->fetch()) {
+        flash('Uzman bulunamadı.', 'error');
+        redirect('/specialists');
+    }
+
+    $delete = db()->prepare("DELETE FROM users WHERE id = :id AND role = 'specialist'");
+    $delete->execute(['id' => $id]);
+
+    flash('Uzman ve ilişkili mesai/randevu kayıtları silindi.');
     redirect('/specialists');
 }
 
