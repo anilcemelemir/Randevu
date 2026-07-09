@@ -1455,6 +1455,136 @@ th {
     }
 }
 
+/* --- Takvim (tarih seçici) --- */
+.calendar {
+    margin-top: 7px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    background: #fff;
+    box-shadow: 0 10px 30px rgba(35, 31, 28, 0.06);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.calendar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.calendar-title {
+    color: var(--ink);
+    font-size: 16px;
+    font-weight: 800;
+    text-transform: capitalize;
+}
+
+.calendar-nav {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--rose-dark);
+    background: #fff;
+    font-size: 22px;
+    line-height: 1;
+}
+
+.calendar-nav:hover {
+    background: #f8ecee;
+}
+
+.calendar-nav:disabled {
+    color: #d7d3cc;
+    background: #fff;
+    cursor: default;
+    opacity: 0.7;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 5px;
+}
+
+.calendar-weekday {
+    padding: 4px 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.calendar-day {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 40px;
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: var(--ink);
+    background: var(--paper);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.calendar-day:hover {
+    border-color: var(--rose);
+    color: var(--rose-dark);
+    background: #fbf0f2;
+}
+
+.calendar-day.is-blank {
+    background: transparent;
+    pointer-events: none;
+}
+
+.calendar-day.is-today {
+    border-color: var(--sage);
+    color: var(--sage);
+}
+
+.calendar-day.is-selected,
+.calendar-day.is-selected:hover {
+    border-color: var(--rose-dark);
+    color: #fff;
+    background: var(--rose-dark);
+}
+
+.calendar-day:disabled {
+    color: #c7c3bb;
+    background: transparent;
+    cursor: default;
+}
+
+.calendar-hint {
+    margin: 10px 2px 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 700;
+}
+
+/* JavaScript kapalıyken görünen yerel tarih alanı için boşluk */
+.booking-date > input[type="date"] {
+    margin-top: 7px;
+}
+
+@media (min-width: 560px) {
+    .calendar-day {
+        font-size: 16px;
+    }
+}
+
 body.nav-open {
     overflow-x: hidden;
 }

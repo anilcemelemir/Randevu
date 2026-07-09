@@ -119,6 +119,7 @@
             <?php require APP_PATH . DIRECTORY_SEPARATOR . 'views' . DIRECTORY_SEPARATOR . $template; ?>
         </main>
     <?php endif; ?>
+    <script src="/assets/calendar.js" defer></script>
     <script>
         document.querySelectorAll('[data-menu-toggle]').forEach((button) => {
             button.addEventListener('click', () => {

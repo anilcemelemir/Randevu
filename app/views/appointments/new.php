@@ -21,19 +21,19 @@
                     <?php endforeach; ?>
                 </select>
             </label>
-            <div class="booking-form-row">
-                <label>
-                    Tarih
-                    <input type="date" name="date" value="<?= e($selectedDate) ?>" min="<?= e(date('Y-m-d')) ?>" required>
-                </label>
-                <label>
-                    Süre
-                    <select name="duration" required>
-                        <option value="1" <?= (int) $selectedDuration === 1 ? 'selected' : '' ?>>1 saat</option>
-                        <option value="2" <?= (int) $selectedDuration === 2 ? 'selected' : '' ?>>2 saat</option>
-                        <option value="3" <?= (int) $selectedDuration === 3 ? 'selected' : '' ?>>3 saat</option>
-                    </select>
-                </label>
+            <label>
+                Süre
+                <select name="duration" required>
+                    <option value="1" <?= (int) $selectedDuration === 1 ? 'selected' : '' ?>>1 saat</option>
+                    <option value="2" <?= (int) $selectedDuration === 2 ? 'selected' : '' ?>>2 saat</option>
+                    <option value="3" <?= (int) $selectedDuration === 3 ? 'selected' : '' ?>>3 saat</option>
+                </select>
+            </label>
+            <div class="booking-date">
+                <label class="field-caption" for="booking-date-input">Tarih</label>
+                <input type="date" id="booking-date-input" name="date" value="<?= e($selectedDate) ?>" min="<?= e(date('Y-m-d')) ?>" required>
+                <div class="calendar" data-calendar data-calendar-for="booking-date-input" hidden></div>
+                <p class="calendar-hint">Gün seçtiğinizde o güne ait uygun saatler otomatik gelir.</p>
             </div>
             <button type="submit">Saatleri göster</button>
         </form>

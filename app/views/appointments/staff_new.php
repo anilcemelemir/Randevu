@@ -22,19 +22,19 @@
                     </select>
                 </label>
             <?php endif; ?>
-            <div class="booking-form-row">
-                <label>
-                    Tarih
-                    <input type="date" name="date" value="<?= e($selectedDate) ?>" min="<?= e(date('Y-m-d')) ?>" required>
-                </label>
-                <label>
-                    S&uuml;re
-                    <select name="duration" required>
-                        <option value="1" <?= (int) $selectedDuration === 1 ? 'selected' : '' ?>>1 saat</option>
-                        <option value="2" <?= (int) $selectedDuration === 2 ? 'selected' : '' ?>>2 saat</option>
-                        <option value="3" <?= (int) $selectedDuration === 3 ? 'selected' : '' ?>>3 saat</option>
-                    </select>
-                </label>
+            <label>
+                S&uuml;re
+                <select name="duration" required>
+                    <option value="1" <?= (int) $selectedDuration === 1 ? 'selected' : '' ?>>1 saat</option>
+                    <option value="2" <?= (int) $selectedDuration === 2 ? 'selected' : '' ?>>2 saat</option>
+                    <option value="3" <?= (int) $selectedDuration === 3 ? 'selected' : '' ?>>3 saat</option>
+                </select>
+            </label>
+            <div class="booking-date">
+                <label class="field-caption" for="booking-date-input">Tarih</label>
+                <input type="date" id="booking-date-input" name="date" value="<?= e($selectedDate) ?>" min="<?= e(date('Y-m-d')) ?>" required>
+                <div class="calendar" data-calendar data-calendar-for="booking-date-input" hidden></div>
+                <p class="calendar-hint">G&uuml;n se&ccedil;tiğinizde o g&uuml;ne ait uygun saatler otomatik gelir.</p>
             </div>
             <button type="submit">M&uuml;sait saatleri g&ouml;ster</button>
         </form>
