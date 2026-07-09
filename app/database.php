@@ -160,25 +160,31 @@ function seed_database(PDO $pdo): void
 
 function seed_services(PDO $pdo): void
 {
-    $exists = (int) $pdo->query('SELECT COUNT(*) FROM services')->fetchColumn();
-    if ($exists > 0) {
-        return;
-    }
+    $stmt = $pdo->prepare("SELECT id FROM services WHERE name = 'Nail Art' LIMIT 1");
+    $stmt->execute();
+    $nailArtId = $stmt->fetchColumn();
 
-    $services = [
-        ['Cilt bakımı', 'Klasik cilt temizliği ve bakım uygulaması', 1200],
-        ['Kaş tasarımı', 'Kaş şekillendirme ve tasarım işlemi', 450],
-        ['Kirpik lifting', 'Kirpik lifting ve bakım işlemi', 900],
-    ];
-
-    $stmt = $pdo->prepare('INSERT INTO services (name, description, price) VALUES (:name, :description, :price)');
-    foreach ($services as [$name, $description, $price]) {
-        $stmt->execute([
-            'name' => $name,
-            'description' => $description,
-            'price' => $price,
+    if ($nailArtId) {
+        $update = $pdo->prepare(
+            "UPDATE services
+             SET name = 'Nail Art',
+                 description = COALESCE(NULLIF(description, ''), 'Nail Art uygulamasi'),
+                 is_active = 1
+             WHERE id = :id"
+        );
+        $update->execute(['id' => $nailArtId]);
+    } else {
+        $insert = $pdo->prepare('INSERT INTO services (name, description, price) VALUES (:name, :description, :price)');
+        $insert->execute([
+            'name' => 'Nail Art',
+            'description' => 'Nail Art uygulamasi',
+            'price' => 0,
         ]);
+        $nailArtId = (int) $pdo->lastInsertId();
     }
+
+    $deactivate = $pdo->prepare('UPDATE services SET is_active = 0 WHERE id <> :id');
+    $deactivate->execute(['id' => $nailArtId]);
 }
 
 function default_settings(): array

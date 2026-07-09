@@ -1221,6 +1221,10 @@ th {
     align-items: start;
 }
 
+.services-layout.single-service-layout {
+    grid-template-columns: minmax(0, 720px);
+}
+
 .service-list {
     display: grid;
     gap: 14px;
@@ -2100,10 +2104,12 @@ th {
     border-left-color: var(--sage);
 }
 
-/* Sadece ekleme formu (details) içeren boş saatlerde iç boşluğu forma bırak;
-   salt-okunur boş saatler normal day-slot boşluğunu korur (sıkışmayı önler). */
 .day-slot.is-free.has-add {
-    padding: 0;
+    background: #fbfdf9;
+}
+
+.day-slot.has-inline-form {
+    background: #fffaf0;
 }
 
 .slot-add {
@@ -2139,8 +2145,49 @@ th {
     padding: 14px 12px;
 }
 
+.slot-add-form.compact {
+    grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.8fr) minmax(220px, 1.1fr) auto;
+    align-items: end;
+    padding: 8px 0 0;
+}
+
+.slot-inline-form {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.8fr) minmax(220px, 1.1fr) auto;
+    gap: 12px;
+    align-items: end;
+    margin-top: 8px;
+}
+
+.slot-inline-form textarea,
+.slot-add-form.compact textarea {
+    min-height: 44px;
+    resize: vertical;
+}
+
+.customer-action-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.customer-action-row[hidden] {
+    display: none;
+}
+
+.customer-action-row button,
+.customer-action-row .button {
+    width: auto;
+    white-space: nowrap;
+}
+
 .slot-add-form button {
     width: 100%;
+}
+
+.slot-add-form .customer-action-row button,
+.slot-add-form .customer-action-row .button {
+    width: auto;
 }
 
 @media (min-width: 560px) {
@@ -2250,6 +2297,20 @@ body.nav-open {
 
     .inline-form {
         grid-template-columns: 1fr;
+    }
+
+    .slot-inline-form,
+    .slot-add-form.compact {
+        grid-template-columns: 1fr;
+    }
+
+    .customer-action-row {
+        align-items: stretch;
+    }
+
+    .customer-action-row button,
+    .customer-action-row .button {
+        flex: 1;
     }
 
     .status-tabs {

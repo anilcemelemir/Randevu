@@ -12,7 +12,6 @@ $statusOptions = [
         <span class="eyebrow">Arşiv</span>
         <h1>Randevu ge&ccedil;mişi</h1>
     </div>
-    <a class="button" href="/appointments/new">Randevu ekle</a>
 </header>
 
 <section class="panel focus-panel">

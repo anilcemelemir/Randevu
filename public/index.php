@@ -182,7 +182,6 @@ function handle_day_view(): void
 
     $user = Auth::user();
     $specialists = specialists();
-    $specialistIds = array_map(static fn (array $specialist): int => (int) $specialist['id'], $specialists);
 
     $date = (string) ($_GET['date'] ?? date('Y-m-d'));
     if (strtotime($date) === false) {
@@ -190,33 +189,16 @@ function handle_day_view(): void
     }
     $date = date('Y-m-d', strtotime($date));
 
-    // Etkin uzman: admin seçer (yoksa ilk uzman), uzman kendi takvimini görür.
-    if ($user['role'] === 'specialist') {
-        $requested = array_key_exists('specialist_id', $_GET) ? (int) $_GET['specialist_id'] : (int) $user['id'];
-        $specialistId = ($requested > 0 && in_array($requested, $specialistIds, true)) ? $requested : (int) $user['id'];
-    } else {
-        $requested = (int) ($_GET['specialist_id'] ?? 0);
-        $specialistId = ($requested > 0 && in_array($requested, $specialistIds, true)) ? $requested : (int) ($specialistIds[0] ?? 0);
-    }
-
-    // Randevuyu sadece admin veya kendi adına uzman ekleyebilir/işleyebilir.
-    $canBook = $user['role'] === 'admin' || (int) $specialistId === (int) $user['id'];
-
-    $schedule = $specialistId > 0
-        ? day_slots($specialistId, $date)
-        : ['open' => false, 'rows' => [], 'appointments' => []];
+    $dayRows = day_schedule_rows($specialists, $date);
 
     view('day/index.php', [
         'title' => 'Gün planı',
         'user' => $user,
         'specialists' => $specialists,
-        'specialistId' => $specialistId,
         'date' => $date,
-        'schedule' => $schedule,
-        'services' => active_services(),
-        'canBook' => $canBook,
+        'dayRows' => $dayRows,
         'backMonth' => date('Y-m', strtotime($date)),
-        'specialistFilter' => $specialistId,
+        'specialistFilter' => 0,
     ]);
 }
 
@@ -305,24 +287,12 @@ function handle_staff_new_appointment(): void
 {
     Auth::requireRole(['admin', 'specialist']);
 
-    $user = Auth::user();
-    $specialistId = $user['role'] === 'admin'
-        ? (int) ($_GET['specialist_id'] ?? 0)
-        : (int) $user['id'];
     $date = $_GET['date'] ?? date('Y-m-d');
-    $duration = max(1, min(3, (int) ($_GET['duration'] ?? 1)));
-    $slots = $specialistId > 0 ? available_slots($specialistId, $date, $duration) : [];
+    if (strtotime((string) $date) === false) {
+        $date = date('Y-m-d');
+    }
 
-    view('appointments/staff_new.php', [
-        'title' => 'Randevu Ekle',
-        'services' => active_services(),
-        'specialists' => specialists(),
-        'selectedSpecialist' => $specialistId,
-        'selectedDate' => $date,
-        'selectedDuration' => $duration,
-        'slots' => $slots,
-        'user' => $user,
-    ]);
+    redirect('/day?date=' . rawurlencode(date('Y-m-d', strtotime((string) $date))));
 }
 
 function handle_staff_create_appointment(): void
@@ -337,37 +307,24 @@ function handle_staff_create_appointment(): void
     $specialistId = $user['role'] === 'admin'
         ? (int) ($_POST['specialist_id'] ?? 0)
         : (int) $user['id'];
-    $duration = max(1, min(3, (int) ($_POST['duration'] ?? 1)));
+    $duration = 1;
     $slotStart = $_POST['slot_start'] ?? '';
     $customerName = trim($_POST['customer_name'] ?? '');
     $customerPhone = trim($_POST['customer_phone'] ?? '');
-    $serviceIds = array_values(array_unique(array_filter(array_map('intval', (array) ($_POST['service_ids'] ?? [])))));
     $note = trim($_POST['note'] ?? '');
+    $status = !empty($_POST['complete_now']) ? 'completed' : 'booked';
 
     // Başarı/hata sonrası ilgili günün planına geri dön.
     $redirectDate = (string) ($_POST['date'] ?? '');
     if (strtotime($redirectDate) === false) {
         $redirectDate = strtotime($slotStart) !== false ? date('Y-m-d', strtotime($slotStart)) : date('Y-m-d');
     }
-    $dayUrl = '/day?date=' . rawurlencode($redirectDate) . '&specialist_id=' . $specialistId;
+    $dayUrl = '/day?date=' . rawurlencode($redirectDate);
 
-    if ($customerName === '' || strtotime($slotStart) === false || !$serviceIds) {
-        flash('Müşteri, işlem ve saat bilgileri zorunludur.', 'error');
+    if ($customerName === '' || strtotime($slotStart) === false) {
+        flash('Müşteri ve saat bilgileri zorunludur.', 'error');
         redirect($dayUrl);
     }
-
-    $placeholders = implode(',', array_fill(0, count($serviceIds), '?'));
-    $servicesStmt = db()->prepare("SELECT * FROM services WHERE is_active = 1 AND id IN ($placeholders) ORDER BY name");
-    $servicesStmt->execute($serviceIds);
-    $selectedServices = $servicesStmt->fetchAll();
-    if (count($selectedServices) !== count($serviceIds)) {
-        flash('Seçilen işlem bulunamadı.', 'error');
-        redirect($dayUrl);
-    }
-
-    $serviceNames = array_map(static fn (array $service): string => $service['name'], $selectedServices);
-    $serviceTotal = array_sum(array_map(static fn (array $service): float => (float) $service['price'], $selectedServices));
-    $primaryServiceId = (int) $selectedServices[0]['id'];
 
     $date = date('Y-m-d', strtotime($slotStart));
     $validSlots = array_column(available_slots($specialistId, $date, $duration), 'start');
@@ -376,23 +333,25 @@ function handle_staff_create_appointment(): void
         redirect($dayUrl);
     }
 
+    $service = nail_art_service();
     $stmt = db()->prepare(
         "INSERT INTO appointments
-            (customer_id, specialist_id, service_id, customer_name, customer_phone, service_name, service_price, slot_start, slot_end, note)
+            (customer_id, specialist_id, service_id, customer_name, customer_phone, service_name, service_price, slot_start, slot_end, note, status)
          VALUES
-            (:customer_id, :specialist_id, :service_id, :customer_name, :customer_phone, :service_name, :service_price, :slot_start, :slot_end, :note)"
+            (:customer_id, :specialist_id, :service_id, :customer_name, :customer_phone, :service_name, :service_price, :slot_start, :slot_end, :note, :status)"
     );
     $stmt->execute([
         'customer_id' => default_customer_id(),
         'specialist_id' => $specialistId,
-        'service_id' => $primaryServiceId,
+        'service_id' => $service['id'],
         'customer_name' => $customerName,
         'customer_phone' => $customerPhone,
-        'service_name' => implode(', ', $serviceNames),
-        'service_price' => $serviceTotal,
+        'service_name' => $service['name'],
+        'service_price' => $service['price'],
         'slot_start' => $slotStart,
         'slot_end' => date('Y-m-d H:i:s', strtotime($slotStart . ' +' . $duration . ' hour')),
         'note' => $note,
+        'status' => $status,
     ]);
 
     $appointmentId = (int) db()->lastInsertId();
@@ -400,16 +359,14 @@ function handle_staff_create_appointment(): void
         'INSERT INTO appointment_services (appointment_id, service_id, service_name, service_price)
          VALUES (:appointment_id, :service_id, :service_name, :service_price)'
     );
-    foreach ($selectedServices as $service) {
-        $serviceInsert->execute([
-            'appointment_id' => $appointmentId,
-            'service_id' => $service['id'],
-            'service_name' => $service['name'],
-            'service_price' => $service['price'],
-        ]);
-    }
+    $serviceInsert->execute([
+        'appointment_id' => $appointmentId,
+        'service_id' => $service['id'],
+        'service_name' => $service['name'],
+        'service_price' => $service['price'],
+    ]);
 
-    flash('Randevu deftere eklendi.');
+    flash($status === 'completed' ? 'Nail Art randevusu onaylandı ve gelir hesabına işlendi.' : 'Nail Art randevusu deftere eklendi.');
     redirect($dayUrl);
 }
 
@@ -435,21 +392,16 @@ function handle_staff_cancel_appointment(): void
         redirect('/dashboard');
     }
 
-    $backUrl = '/day?date=' . date('Y-m-d', strtotime($appointment['slot_start'])) . '&specialist_id=' . (int) $appointment['specialist_id'];
+    $backUrl = '/day?date=' . date('Y-m-d', strtotime($appointment['slot_start']));
 
     if (!in_array($appointment['status'], ['booked', 'completed'], true)) {
         flash('Sadece planlanan veya onaylanan randevular iptal edilebilir.', 'error');
         redirect($backUrl);
     }
 
-    if ($appointment['status'] === 'booked' && strtotime($appointment['slot_start']) <= time() + 3600) {
-        flash('Randevuya 1 saatten az kaldığı için iptal edilemez.', 'error');
-        redirect($backUrl);
-    }
-
     $update = db()->prepare("UPDATE appointments SET status = 'cancelled' WHERE id = :id");
     $update->execute(['id' => $id]);
-    flash('Randevu iptal edildi.');
+    flash('Randevu silindi.');
     redirect($backUrl);
 }
 
@@ -475,15 +427,42 @@ function handle_appointment_approve(): void
         redirect('/dashboard');
     }
 
-    $backUrl = '/day?date=' . date('Y-m-d', strtotime($appointment['slot_start'])) . '&specialist_id=' . (int) $appointment['specialist_id'];
+    $backUrl = '/day?date=' . date('Y-m-d', strtotime($appointment['slot_start']));
 
     if ($appointment['status'] !== 'booked') {
         flash('Sadece planlanan randevular onaylanabilir.', 'error');
         redirect($backUrl);
     }
 
-    $update = db()->prepare("UPDATE appointments SET status = 'completed' WHERE id = :id");
-    $update->execute(['id' => $id]);
+    $customerName = array_key_exists('customer_name', $_POST)
+        ? trim((string) $_POST['customer_name'])
+        : trim((string) ($appointment['customer_name'] ?? ''));
+    $customerPhone = array_key_exists('customer_phone', $_POST)
+        ? trim((string) $_POST['customer_phone'])
+        : trim((string) ($appointment['customer_phone'] ?? ''));
+    $note = array_key_exists('note', $_POST)
+        ? trim((string) $_POST['note'])
+        : trim((string) ($appointment['note'] ?? ''));
+
+    if ($customerName === '') {
+        flash('Müşteri adı boş bırakılamaz.', 'error');
+        redirect($backUrl);
+    }
+
+    $update = db()->prepare(
+        "UPDATE appointments
+         SET status = 'completed',
+             customer_name = :customer_name,
+             customer_phone = :customer_phone,
+             note = :note
+         WHERE id = :id"
+    );
+    $update->execute([
+        'customer_name' => $customerName,
+        'customer_phone' => $customerPhone,
+        'note' => $note,
+        'id' => $id,
+    ]);
     flash('Randevu onaylandı ve gelir hesabına işlendi.');
     redirect($backUrl);
 }
@@ -901,7 +880,7 @@ function handle_services(): void
 
     view('services/index.php', [
         'title' => 'İşlem Fiyat Listesi',
-        'services' => all_services(),
+        'service' => nail_art_service(),
     ]);
 }
 
@@ -913,18 +892,7 @@ function handle_service_create(): void
         redirect('/services');
     }
 
-    $name = trim($_POST['name'] ?? '');
-    $description = trim($_POST['description'] ?? '');
-    $price = (float) str_replace(',', '.', (string) ($_POST['price'] ?? '0'));
-
-    if ($name === '' || $price < 0) {
-        flash('İşlem adı ve fiyat bilgisi geçerli olmalıdır.', 'error');
-        redirect('/services');
-    }
-
-    $stmt = db()->prepare('INSERT INTO services (name, description, price) VALUES (:name, :description, :price)');
-    $stmt->execute(['name' => $name, 'description' => $description, 'price' => $price]);
-    flash('İşlem eklendi.');
+    flash('Fiyat listesinde yalnızca Nail Art düzenlenebilir.', 'warning');
     redirect('/services');
 }
 
@@ -936,27 +904,23 @@ function handle_service_update(): void
         redirect('/services');
     }
 
-    $id = (int) ($_POST['id'] ?? 0);
-    $name = trim($_POST['name'] ?? '');
+    $service = nail_art_service();
     $description = trim($_POST['description'] ?? '');
     $price = (float) str_replace(',', '.', (string) ($_POST['price'] ?? '0'));
-    $isActive = !empty($_POST['is_active']) ? 1 : 0;
 
-    if ($id <= 0 || $name === '' || $price < 0) {
+    if ($price < 0) {
         flash('İşlem bilgileri geçerli değil.', 'error');
         redirect('/services');
     }
 
-    $stmt = db()->prepare('UPDATE services SET name = :name, description = :description, price = :price, is_active = :is_active WHERE id = :id');
+    $stmt = db()->prepare("UPDATE services SET name = 'Nail Art', description = :description, price = :price, is_active = 1 WHERE id = :id");
     $stmt->execute([
-        'name' => $name,
         'description' => $description,
         'price' => $price,
-        'is_active' => $isActive,
-        'id' => $id,
+        'id' => $service['id'],
     ]);
 
-    flash('İşlem güncellendi.');
+    flash('Nail Art fiyatı güncellendi.');
     redirect('/services');
 }
 
@@ -968,10 +932,7 @@ function handle_service_delete(): void
         redirect('/services');
     }
 
-    $id = (int) ($_POST['id'] ?? 0);
-    $stmt = db()->prepare('UPDATE services SET is_active = 0 WHERE id = :id');
-    $stmt->execute(['id' => $id]);
-    flash('İşlem pasife alındı.');
+    flash('Nail Art pasife alınamaz.', 'warning');
     redirect('/services');
 }
 
@@ -1290,12 +1251,49 @@ function specialists(): array
 
 function active_services(): array
 {
-    return db()->query('SELECT * FROM services WHERE is_active = 1 ORDER BY name')->fetchAll();
+    return [nail_art_service()];
 }
 
 function all_services(): array
 {
-    return db()->query('SELECT * FROM services ORDER BY is_active DESC, name')->fetchAll();
+    return [nail_art_service()];
+}
+
+function nail_art_service(): array
+{
+    $stmt = db()->prepare("SELECT * FROM services WHERE name = 'Nail Art' LIMIT 1");
+    $stmt->execute();
+    $service = $stmt->fetch();
+
+    if (!$service) {
+        $insert = db()->prepare('INSERT INTO services (name, description, price, is_active) VALUES (:name, :description, :price, 1)');
+        $insert->execute([
+            'name' => 'Nail Art',
+            'description' => 'Nail Art uygulamasi',
+            'price' => 0,
+        ]);
+        $serviceId = (int) db()->lastInsertId();
+    } else {
+        $serviceId = (int) $service['id'];
+        if ((int) $service['is_active'] !== 1) {
+            $activate = db()->prepare("UPDATE services SET is_active = 1 WHERE id = :id");
+            $activate->execute(['id' => $serviceId]);
+        }
+    }
+
+    $deactivate = db()->prepare('UPDATE services SET is_active = 0 WHERE id <> :id');
+    $deactivate->execute(['id' => $serviceId]);
+
+    $fresh = db()->prepare('SELECT * FROM services WHERE id = :id LIMIT 1');
+    $fresh->execute(['id' => $serviceId]);
+
+    return $fresh->fetch() ?: [
+        'id' => $serviceId,
+        'name' => 'Nail Art',
+        'description' => 'Nail Art uygulamasi',
+        'price' => 0,
+        'is_active' => 1,
+    ];
 }
 
 function service_by_id(int $id): ?array
@@ -1389,6 +1387,37 @@ function available_slots(int $specialistId, string $date, int $duration = 1): ar
     }
 
     return $slots;
+}
+
+function can_manage_specialist(array $user, int $specialistId): bool
+{
+    return ($user['role'] ?? '') === 'admin' || (int) ($user['id'] ?? 0) === $specialistId;
+}
+
+function day_schedule_rows(array $specialists, string $date): array
+{
+    $rows = [];
+
+    foreach ($specialists as $specialist) {
+        $specialistId = (int) $specialist['id'];
+        $schedule = day_slots($specialistId, $date);
+
+        foreach (($schedule['rows'] ?? []) as $row) {
+            $row['specialist'] = $specialist;
+            $rows[] = $row;
+        }
+    }
+
+    usort($rows, static function (array $a, array $b): int {
+        $timeCompare = ((int) $a['start']) <=> ((int) $b['start']);
+        if ($timeCompare !== 0) {
+            return $timeCompare;
+        }
+
+        return strcmp((string) ($a['specialist']['name'] ?? ''), (string) ($b['specialist']['name'] ?? ''));
+    });
+
+    return $rows;
 }
 
 /**
