@@ -23,6 +23,7 @@ match ($path) {
     '/' => handle_login(),
     '/register' => handle_register_disabled(),
     '/dashboard' => handle_dashboard(),
+    '/day' => handle_day_view(),
     '/appointments/new' => handle_staff_new_appointment(),
     '/appointments/create' => handle_staff_create_appointment(),
     '/appointments/cancel' => handle_staff_cancel_appointment(),
@@ -110,101 +111,112 @@ function handle_dashboard(): void
         redirect('/');
     }
 
-    if ($user['role'] === 'customer') {
-        $stmt = db()->prepare(
-            "SELECT a.*, s.name AS specialist_name
-             FROM appointments a
-             JOIN users s ON s.id = a.specialist_id
-             WHERE a.customer_id = :customer_id
-             ORDER BY a.slot_start DESC"
-        );
-        $stmt->execute(['customer_id' => $user['id']]);
-
-        view('dashboard/customer.php', [
-            'title' => 'Randevularım',
-            'appointments' => $stmt->fetchAll(),
-            'user' => $user,
-        ]);
-        return;
-    }
-
-    $statusFilter = $_GET['status'] ?? 'all';
-    $allowedStatuses = ['all', 'booked', 'completed', 'cancelled'];
-    if (!in_array($statusFilter, $allowedStatuses, true)) {
-        $statusFilter = 'all';
-    }
-
     $specialists = specialists();
     $specialistIds = array_map(static fn (array $specialist): int => (int) $specialist['id'], $specialists);
-    $specialistFilter = (int) ($_GET['specialist_id'] ?? 0);
+
+    // Uzman filtresi (0 = tüm uzmanlar). Uzman rolü varsayılan olarak kendini görür.
+    if (array_key_exists('specialist_id', $_GET)) {
+        $specialistFilter = (int) $_GET['specialist_id'];
+    } else {
+        $specialistFilter = $user['role'] === 'specialist' ? (int) $user['id'] : 0;
+    }
     if ($specialistFilter > 0 && !in_array($specialistFilter, $specialistIds, true)) {
         $specialistFilter = 0;
     }
 
-    $visibleFrom = date('Y-m-d H:i:s', time() - (10 * 3600));
-    $conditions = ['a.slot_start >= :visible_from'];
-    $params = ['visible_from' => $visibleFrom];
+    // Uzman rolü "tüm uzmanlar" (0) sorgusu yapamaz; her zaman belirli bir uzman seçilidir.
+    if ($user['role'] === 'specialist' && $specialistFilter <= 0) {
+        $specialistFilter = (int) $user['id'];
+    }
+
+    // Görüntülenen ay (YYYY-MM), varsayılan içinde bulunulan ay.
+    $monthParam = (string) ($_GET['month'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}$/', $monthParam) || strtotime($monthParam . '-01') === false) {
+        $monthParam = date('Y-m');
+    }
+    $monthStartTs = strtotime($monthParam . '-01 00:00:00');
+    $monthStart = date('Y-m-d', $monthStartTs);
+    $monthEnd = date('Y-m-d', strtotime('first day of next month', $monthStartTs)); // hariç
+
+    // Aktif (iptal olmayan) randevuları güne göre say.
+    $conditions = ['a.slot_start >= :start', 'a.slot_start < :end', "a.status IN ('booked', 'completed')"];
+    $params = ['start' => $monthStart . ' 00:00:00', 'end' => $monthEnd . ' 00:00:00'];
     if ($specialistFilter > 0) {
         $conditions[] = 'a.specialist_id = :specialist_id';
         $params['specialist_id'] = $specialistFilter;
     }
-    if ($statusFilter !== 'all') {
-        $conditions[] = 'a.status = :status';
-        $params['status'] = $statusFilter;
-    }
-    $where = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+    $where = 'WHERE ' . implode(' AND ', $conditions);
 
-    $appointmentsStmt = db()->prepare(
-        "SELECT a.*, COALESCE(a.customer_name, c.name) AS customer_name, s.name AS specialist_name
+    $countStmt = db()->prepare(
+        "SELECT date(a.slot_start) AS d, COUNT(*) AS c
          FROM appointments a
-         LEFT JOIN users c ON c.id = a.customer_id
-         JOIN users s ON s.id = a.specialist_id
          $where
-         ORDER BY a.slot_start ASC"
+         GROUP BY date(a.slot_start)"
     );
-    $appointmentsStmt->execute($params);
-    $appointments = $appointmentsStmt->fetchAll();
+    $countStmt->execute($params);
 
-    $blocks = db()->query(
-        "SELECT b.*, s.name AS specialist_name
-         FROM blocked_slots b
-         JOIN users s ON s.id = b.specialist_id
-         WHERE b.slot_start >= datetime('now', '-7 days')
-         ORDER BY b.slot_start ASC"
-    )->fetchAll();
-
-    $myAppointments = [];
-    if ($user['role'] === 'specialist') {
-        $mine = db()->prepare(
-            "SELECT a.*, COALESCE(a.customer_name, c.name) AS customer_name, s.name AS specialist_name
-             FROM appointments a
-             LEFT JOIN users c ON c.id = a.customer_id
-             JOIN users s ON s.id = a.specialist_id
-             WHERE a.specialist_id = :specialist_id
-               AND a.slot_start >= :visible_from
-               " . ($statusFilter !== 'all' ? 'AND a.status = :status' : '') . "
-             ORDER BY a.slot_start ASC"
-        );
-        $mineParams = [
-            'specialist_id' => $user['id'],
-            'visible_from' => $visibleFrom,
-        ];
-        if ($statusFilter !== 'all') {
-            $mineParams['status'] = $statusFilter;
-        }
-        $mine->execute($mineParams);
-        $myAppointments = $mine->fetchAll();
+    $countByDay = [];
+    foreach ($countStmt->fetchAll() as $row) {
+        $countByDay[$row['d']] = (int) $row['c'];
     }
 
     view('dashboard/staff.php', [
         'title' => 'Salon Takvimi',
-        'appointments' => $appointments,
-        'myAppointments' => $myAppointments,
-        'blocks' => $blocks,
+        'user' => $user,
         'specialists' => $specialists,
         'specialistFilter' => $specialistFilter,
+        'month' => $monthParam,
+        'monthStartTs' => $monthStartTs,
+        'daysInMonth' => (int) date('t', $monthStartTs),
+        'lead' => (int) date('N', $monthStartTs) - 1, // Pazartesi = 0 kaydırma
+        'countByDay' => $countByDay,
+        'todayKey' => date('Y-m-d'),
+        'prevMonth' => date('Y-m', strtotime('-1 month', $monthStartTs)),
+        'nextMonth' => date('Y-m', strtotime('+1 month', $monthStartTs)),
+    ]);
+}
+
+function handle_day_view(): void
+{
+    Auth::requireRole(['admin', 'specialist']);
+
+    $user = Auth::user();
+    $specialists = specialists();
+    $specialistIds = array_map(static fn (array $specialist): int => (int) $specialist['id'], $specialists);
+
+    $date = (string) ($_GET['date'] ?? date('Y-m-d'));
+    if (strtotime($date) === false) {
+        $date = date('Y-m-d');
+    }
+    $date = date('Y-m-d', strtotime($date));
+
+    // Etkin uzman: admin seçer (yoksa ilk uzman), uzman kendi takvimini görür.
+    if ($user['role'] === 'specialist') {
+        $requested = array_key_exists('specialist_id', $_GET) ? (int) $_GET['specialist_id'] : (int) $user['id'];
+        $specialistId = ($requested > 0 && in_array($requested, $specialistIds, true)) ? $requested : (int) $user['id'];
+    } else {
+        $requested = (int) ($_GET['specialist_id'] ?? 0);
+        $specialistId = ($requested > 0 && in_array($requested, $specialistIds, true)) ? $requested : (int) ($specialistIds[0] ?? 0);
+    }
+
+    // Randevuyu sadece admin veya kendi adına uzman ekleyebilir/işleyebilir.
+    $canBook = $user['role'] === 'admin' || (int) $specialistId === (int) $user['id'];
+
+    $schedule = $specialistId > 0
+        ? day_slots($specialistId, $date)
+        : ['open' => false, 'rows' => [], 'appointments' => []];
+
+    view('day/index.php', [
+        'title' => 'Gün planı',
         'user' => $user,
-        'statusFilter' => $statusFilter,
+        'specialists' => $specialists,
+        'specialistId' => $specialistId,
+        'date' => $date,
+        'schedule' => $schedule,
+        'services' => active_services(),
+        'canBook' => $canBook,
+        'backMonth' => date('Y-m', strtotime($date)),
+        'specialistFilter' => $specialistId,
     ]);
 }
 
@@ -332,9 +344,16 @@ function handle_staff_create_appointment(): void
     $serviceIds = array_values(array_unique(array_filter(array_map('intval', (array) ($_POST['service_ids'] ?? [])))));
     $note = trim($_POST['note'] ?? '');
 
+    // Başarı/hata sonrası ilgili günün planına geri dön.
+    $redirectDate = (string) ($_POST['date'] ?? '');
+    if (strtotime($redirectDate) === false) {
+        $redirectDate = strtotime($slotStart) !== false ? date('Y-m-d', strtotime($slotStart)) : date('Y-m-d');
+    }
+    $dayUrl = '/day?date=' . rawurlencode($redirectDate) . '&specialist_id=' . $specialistId;
+
     if ($customerName === '' || strtotime($slotStart) === false || !$serviceIds) {
         flash('Müşteri, işlem ve saat bilgileri zorunludur.', 'error');
-        redirect('/appointments/new');
+        redirect($dayUrl);
     }
 
     $placeholders = implode(',', array_fill(0, count($serviceIds), '?'));
@@ -343,7 +362,7 @@ function handle_staff_create_appointment(): void
     $selectedServices = $servicesStmt->fetchAll();
     if (count($selectedServices) !== count($serviceIds)) {
         flash('Seçilen işlem bulunamadı.', 'error');
-        redirect('/appointments/new');
+        redirect($dayUrl);
     }
 
     $serviceNames = array_map(static fn (array $service): string => $service['name'], $selectedServices);
@@ -354,8 +373,7 @@ function handle_staff_create_appointment(): void
     $validSlots = array_column(available_slots($specialistId, $date, $duration), 'start');
     if (!in_array($slotStart, $validSlots, true)) {
         flash('Seçilen saat artık uygun değil.', 'error');
-        $specialistQuery = $user['role'] === 'admin' ? '&specialist_id=' . $specialistId : '';
-        redirect('/appointments/new?date=' . $date . '&duration=' . $duration . $specialistQuery);
+        redirect($dayUrl);
     }
 
     $stmt = db()->prepare(
@@ -392,7 +410,7 @@ function handle_staff_create_appointment(): void
     }
 
     flash('Randevu deftere eklendi.');
-    redirect('/dashboard');
+    redirect($dayUrl);
 }
 
 function handle_staff_cancel_appointment(): void
@@ -417,20 +435,22 @@ function handle_staff_cancel_appointment(): void
         redirect('/dashboard');
     }
 
+    $backUrl = '/day?date=' . date('Y-m-d', strtotime($appointment['slot_start'])) . '&specialist_id=' . (int) $appointment['specialist_id'];
+
     if (!in_array($appointment['status'], ['booked', 'completed'], true)) {
         flash('Sadece planlanan veya onaylanan randevular iptal edilebilir.', 'error');
-        redirect('/dashboard');
+        redirect($backUrl);
     }
 
     if ($appointment['status'] === 'booked' && strtotime($appointment['slot_start']) <= time() + 3600) {
         flash('Randevuya 1 saatten az kaldığı için iptal edilemez.', 'error');
-        redirect('/dashboard');
+        redirect($backUrl);
     }
 
     $update = db()->prepare("UPDATE appointments SET status = 'cancelled' WHERE id = :id");
     $update->execute(['id' => $id]);
     flash('Randevu iptal edildi.');
-    redirect('/dashboard');
+    redirect($backUrl);
 }
 
 function handle_appointment_approve(): void
@@ -455,15 +475,17 @@ function handle_appointment_approve(): void
         redirect('/dashboard');
     }
 
+    $backUrl = '/day?date=' . date('Y-m-d', strtotime($appointment['slot_start'])) . '&specialist_id=' . (int) $appointment['specialist_id'];
+
     if ($appointment['status'] !== 'booked') {
         flash('Sadece planlanan randevular onaylanabilir.', 'error');
-        redirect('/dashboard');
+        redirect($backUrl);
     }
 
     $update = db()->prepare("UPDATE appointments SET status = 'completed' WHERE id = :id");
     $update->execute(['id' => $id]);
     flash('Randevu onaylandı ve gelir hesabına işlendi.');
-    redirect('/dashboard?status=completed');
+    redirect($backUrl);
 }
 
 function handle_new_appointment(): void
@@ -636,7 +658,7 @@ function handle_cancel_appointment_v2(): void
 
 function handle_specialists(): void
 {
-    Auth::requireRole(['admin', 'specialist']);
+    Auth::requireRole(['admin']);
 
     $id = (int) ($_GET['id'] ?? 0);
     if ($id > 0) {
@@ -1367,6 +1389,101 @@ function available_slots(int $specialistId, string $date, int $duration = 1): ar
     }
 
     return $slots;
+}
+
+/**
+ * Bir uzmanın belirli bir gündeki saatlik boş/dolu şemasını döndürür.
+ * Her satır: type = busy | blocked | past | free.
+ */
+function day_slots(int $specialistId, string $date): array
+{
+    if (strtotime($date) === false) {
+        return ['open' => false, 'rows' => [], 'appointments' => []];
+    }
+
+    $weekday = (int) date('N', strtotime($date));
+    $hoursStmt = db()->prepare('SELECT * FROM working_hours WHERE specialist_id = :s AND weekday = :w LIMIT 1');
+    $hoursStmt->execute(['s' => $specialistId, 'w' => $weekday]);
+    $hours = $hoursStmt->fetch();
+
+    $apptStmt = db()->prepare(
+        "SELECT a.*, COALESCE(a.customer_name, c.name) AS customer_name
+         FROM appointments a
+         LEFT JOIN users c ON c.id = a.customer_id
+         WHERE a.specialist_id = :s AND date(a.slot_start) = :d
+         ORDER BY a.slot_start ASC"
+    );
+    $apptStmt->execute(['s' => $specialistId, 'd' => $date]);
+    $dayAppointments = $apptStmt->fetchAll();
+
+    if (!$hours) {
+        return ['open' => false, 'rows' => [], 'appointments' => $dayAppointments];
+    }
+
+    $blockStmt = db()->prepare('SELECT * FROM blocked_slots WHERE specialist_id = :s AND date(slot_start) = :d');
+    $blockStmt->execute(['s' => $specialistId, 'd' => $date]);
+    $blocks = $blockStmt->fetchAll();
+
+    $start = strtotime($date . ' ' . $hours['start_time']);
+    $end = strtotime($date . ' ' . $hours['end_time']);
+    $now = time();
+    $rows = [];
+
+    for ($t = $start; $t + 3600 <= $end; $t += 3600) {
+        $slotEnd = $t + 3600;
+
+        // Bu saati kaplayan randevu (yalnızca planlanan/onaylanan meşgul eder).
+        $apptHere = null;
+        $covered = false;
+        foreach ($dayAppointments as $appointment) {
+            if (!in_array($appointment['status'], ['booked', 'completed'], true)) {
+                continue;
+            }
+            $apptStart = strtotime($appointment['slot_start']);
+            $apptEnd = strtotime($appointment['slot_end']);
+            if ($apptStart <= $t && $t < $apptEnd) {
+                if ($apptStart === $t) {
+                    $apptHere = $appointment;
+                } else {
+                    $covered = true;
+                }
+                break;
+            }
+        }
+        if ($covered) {
+            continue; // Daha erken başlayan randevu tarafından kaplanıyor.
+        }
+        if ($apptHere) {
+            $rows[] = [
+                'type' => 'busy',
+                'start' => $t,
+                'label' => date('H:i', $t) . ' - ' . date('H:i', strtotime($apptHere['slot_end'])),
+                'appointment' => $apptHere,
+            ];
+            continue;
+        }
+
+        $blockReason = null;
+        foreach ($blocks as $block) {
+            if (strtotime($block['slot_start']) < $slotEnd && strtotime($block['slot_end']) > $t) {
+                $blockReason = (string) ($block['reason'] ?? '');
+                break;
+            }
+        }
+        if ($blockReason !== null) {
+            $rows[] = ['type' => 'blocked', 'start' => $t, 'label' => date('H:i', $t) . ' - ' . date('H:i', $slotEnd), 'reason' => $blockReason];
+            continue;
+        }
+
+        if ($t <= $now) {
+            $rows[] = ['type' => 'past', 'start' => $t, 'label' => date('H:i', $t) . ' - ' . date('H:i', $slotEnd)];
+            continue;
+        }
+
+        $rows[] = ['type' => 'free', 'start' => $t, 'label' => date('H:i', $t) . ' - ' . date('H:i', $slotEnd)];
+    }
+
+    return ['open' => true, 'hours' => $hours, 'rows' => $rows, 'appointments' => $dayAppointments];
 }
 
 function not_found(): void

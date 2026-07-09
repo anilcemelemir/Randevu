@@ -131,6 +131,25 @@ function weekdays(): array
     ];
 }
 
+function tr_month(int $month, bool $short = false): string
+{
+    $full = [
+        1 => 'Ocak', 2 => 'Şubat', 3 => 'Mart', 4 => 'Nisan', 5 => 'Mayıs', 6 => 'Haziran',
+        7 => 'Temmuz', 8 => 'Ağustos', 9 => 'Eylül', 10 => 'Ekim', 11 => 'Kasım', 12 => 'Aralık',
+    ];
+    $abbr = [
+        1 => 'Oca', 2 => 'Şub', 3 => 'Mar', 4 => 'Nis', 5 => 'May', 6 => 'Haz',
+        7 => 'Tem', 8 => 'Ağu', 9 => 'Eyl', 10 => 'Eki', 11 => 'Kas', 12 => 'Ara',
+    ];
+
+    return ($short ? $abbr : $full)[$month] ?? '';
+}
+
+function tr_weekday_short(int $weekday): string
+{
+    return [1 => 'Pzt', 2 => 'Sal', 3 => 'Çar', 4 => 'Per', 5 => 'Cum', 6 => 'Cmt', 7 => 'Paz'][$weekday] ?? '';
+}
+
 function role_label(string $role): string
 {
     return [

@@ -1579,8 +1579,576 @@ th {
     margin-top: 7px;
 }
 
+/* --- Ajanda takvimi (ana ekran) --- */
+.calendar-panel {
+    padding: 16px;
+}
+
+.agenda-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.agenda-toolbar .specialist-filter {
+    margin: 0;
+    min-width: 200px;
+}
+
+.agenda-toolbar .specialist-filter label {
+    min-width: 0;
+}
+
+.agenda-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 14px 0;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--sage-soft);
+}
+
+.agenda-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--rose-dark);
+    background: #fff;
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.agenda-nav-btn:hover {
+    background: #f8ecee;
+}
+
+.agenda-range {
+    flex: 1;
+    text-align: center;
+    line-height: 1.25;
+}
+
+.agenda-range strong {
+    display: block;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.agenda-range small {
+    color: #4c5a4e;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.agenda-today-link {
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.agenda {
+    display: grid;
+    gap: 10px;
+}
+
+.agenda-day {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+}
+
+.agenda-day.is-empty {
+    background: var(--paper);
+}
+
+.agenda-day.is-today {
+    border-color: var(--rose-dark);
+    box-shadow: 0 0 0 1px var(--rose-dark);
+}
+
+.agenda-day-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+}
+
+.is-empty .agenda-day-head {
+    padding: 9px 14px;
+}
+
+.agenda-date {
+    display: grid;
+    place-items: center;
+    min-width: 48px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    color: #3c5140;
+    background: var(--sage-soft);
+    text-align: center;
+}
+
+.is-today .agenda-date {
+    color: #fff;
+    background: var(--rose-dark);
+}
+
+.is-empty .agenda-date {
+    color: var(--muted);
+    background: transparent;
+    border: 1px dashed var(--line);
+}
+
+.agenda-dnum {
+    font-size: 20px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.agenda-dmon {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.agenda-dinfo strong {
+    display: block;
+    font-size: 14px;
+}
+
+.agenda-dinfo small {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.agenda-items {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0 12px 12px;
+    list-style: none;
+}
+
+.agenda-item {
+    display: flex;
+    gap: 12px;
+    border: 1px solid var(--line);
+    border-left-width: 4px;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fff;
+}
+
+.agenda-item.status-booked {
+    border-left-color: var(--gold);
+}
+
+.agenda-item.status-completed {
+    border-left-color: var(--sage);
+}
+
+.agenda-item.status-cancelled {
+    border-left-color: #cabfae;
+    background: #faf7f2;
+}
+
+.agenda-item.status-cancelled .agenda-item-time,
+.agenda-item.status-cancelled .agenda-item-body strong {
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
+.agenda-item-time {
+    flex: 0 0 auto;
+    width: 46px;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.agenda-item-time span {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.agenda-item-main {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 12px;
+    min-width: 0;
+}
+
+.agenda-item-body {
+    display: grid;
+    gap: 2px;
+    flex: 1 1 58%;
+    min-width: 0;
+}
+
+.agenda-item-body strong {
+    font-size: 15px;
+}
+
+.agenda-item-service {
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.agenda-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 10px;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.agenda-item-meta a {
+    color: var(--rose-dark);
+}
+
+.agenda-note {
+    font-style: italic;
+}
+
+.agenda-item-side {
+    display: grid;
+    flex: 0 0 auto;
+    gap: 6px;
+    justify-items: end;
+    align-content: start;
+}
+
+.agenda-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.status-badge-booked {
+    color: #6d4a18;
+    background: #fff2d6;
+}
+
+.status-badge-completed {
+    color: #2f5433;
+    background: var(--sage-soft);
+}
+
+.status-badge-cancelled {
+    color: #7c736a;
+    background: #eeeae3;
+}
+
+.agenda-foot {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.agenda-foot .button {
+    flex: 1;
+    min-width: 0;
+}
+
+@media (max-width: 560px) {
+    .agenda-toolbar .specialist-filter {
+        width: 100%;
+    }
+
+    .agenda-item-side {
+        justify-items: start;
+    }
+
+    .agenda-foot .button {
+        padding-inline: 8px;
+        font-size: 14px;
+    }
+}
+
+/* --- Aylık ızgara takvim (ana ekran) --- */
+.month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 5px;
+}
+
+.month-weekday {
+    padding: 4px 0;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.month-cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    aspect-ratio: 1 / 1;
+    min-height: 46px;
+    padding: 6px 2px 4px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--ink);
+    background: var(--paper);
+    font-weight: 700;
+}
+
+.month-cell:hover {
+    border-color: var(--rose);
+    background: #fbf0f2;
+}
+
+.month-cell.is-blank {
+    border-color: transparent;
+    background: transparent;
+    pointer-events: none;
+}
+
+.month-cell.is-today {
+    border-color: var(--rose-dark);
+    box-shadow: inset 0 0 0 1px var(--rose-dark);
+}
+
+.month-cell.is-past {
+    color: var(--muted);
+    background: #fff;
+}
+
+.month-daynum {
+    font-size: 15px;
+}
+
+.month-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: auto;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    color: #fff;
+    background: var(--rose-dark);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.is-past .month-count {
+    background: var(--muted);
+}
+
+/* --- Gün planı (saatlik boş/dolu + ekleme) --- */
+.day-header .back-link {
+    font-weight: 800;
+}
+
+.day-subtitle {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.day-specialist {
+    margin: 0 0 16px;
+    max-width: 320px;
+}
+
+.day-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.day-legend .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 4px;
+    border-radius: 50%;
+    vertical-align: -1px;
+}
+
+.dot-free {
+    background: var(--sage);
+}
+
+.dot-busy {
+    background: var(--gold);
+}
+
+.dot-blocked {
+    background: #cabfae;
+}
+
+.day-slots {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.day-slot {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    border: 1px solid var(--line);
+    border-left-width: 4px;
+    border-radius: 10px;
+    padding: 12px;
+    background: #fff;
+}
+
+.day-slot-time {
+    flex: 0 0 auto;
+    width: 96px;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.day-slot-body {
+    display: grid;
+    flex: 1;
+    gap: 2px;
+    min-width: 0;
+}
+
+.day-slot-body strong {
+    font-size: 15px;
+}
+
+.day-slot-service {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.day-slot-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 10px;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.day-slot-meta a {
+    color: var(--rose-dark);
+}
+
+.day-slot-side {
+    display: grid;
+    flex: 0 0 auto;
+    gap: 6px;
+    margin-left: auto;
+    justify-items: end;
+}
+
+.day-slot.is-busy.status-booked {
+    border-left-color: var(--gold);
+}
+
+.day-slot.is-busy.status-completed {
+    border-left-color: var(--sage);
+}
+
+.day-slot.is-busy.status-cancelled {
+    border-left-color: #cabfae;
+}
+
+.day-slot.is-blocked {
+    border-left-color: #cabfae;
+    background: #faf7f2;
+}
+
+.day-slot.is-past {
+    border-left-color: var(--line);
+    background: var(--paper);
+}
+
+.day-slot.is-free {
+    border-left-color: var(--sage);
+}
+
+/* Sadece ekleme formu (details) içeren boş saatlerde iç boşluğu forma bırak;
+   salt-okunur boş saatler normal day-slot boşluğunu korur (sıkışmayı önler). */
+.day-slot.is-free.has-add {
+    padding: 0;
+}
+
+.slot-add {
+    width: 100%;
+}
+
+.slot-add > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.slot-add > summary::-webkit-details-marker {
+    display: none;
+}
+
+.slot-add-cta {
+    color: var(--rose-dark);
+    font-weight: 800;
+}
+
+.slot-add[open] > summary {
+    border-bottom: 1px solid var(--line);
+}
+
+.slot-add-form {
+    display: grid;
+    gap: 12px;
+    padding: 14px 12px;
+}
+
+.slot-add-form button {
+    width: 100%;
+}
+
 @media (min-width: 560px) {
     .calendar-day {
+        font-size: 16px;
+    }
+
+    .month-daynum {
         font-size: 16px;
     }
 }
